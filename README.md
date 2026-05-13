@@ -1,185 +1,135 @@
-# Explainer for the TODO API
-
-**Instructions for the explainer author: Search for "todo" in this repository and update all the
-instances as appropriate. For the instances in `index.bs`, update the repository name, but you can
-leave the rest until you start the specification. Then delete the TODOs and this block of text.**
-
-This proposal is an early design sketch by [TODO: team] to describe the problem below and solicit
-feedback on the proposed solution. It has not been approved to ship in Chrome.
-
-TODO: Fill in the whole explainer template below using https://tag.w3.org/explainers/ as a
-reference. Look for [brackets].
+# Explainer: Prefetch Activation Beacon API
 
 ## Proponents
 
-- [Proponent team 1]
-- [Proponent team 2]
-- [etc.]
+- Jiacheng Guo (gjc@google.com)
 
 ## Participate
-- https://github.com/explainers-by-googlers/[your-repository-name]/issues
-- [Discussion forum]
+- https://github.com/explainers-by-googlers/prefetch-activation-beacon/issues
 
-## Table of Contents [if the explainer is longer than one printed page]
-
-<!-- Update this table of contents by running `npx doctoc README.md` -->
-<!-- START doctoc generated TOC please keep comment here to allow auto update -->
-<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
+## Table of Contents
 
 - [Introduction](#introduction)
 - [Goals](#goals)
 - [Non-goals](#non-goals)
 - [User research](#user-research)
 - [Use cases](#use-cases)
-  - [Use case 1](#use-case-1)
-  - [Use case 2](#use-case-2)
-- [[Potential Solution]](#potential-solution)
-  - [How this solution would solve the use cases](#how-this-solution-would-solve-the-use-cases)
-    - [Use case 1](#use-case-1-1)
-    - [Use case 2](#use-case-2-1)
+- [Proposed Solution](#proposed-solution)
+  - [Header Syntax](#header-syntax)
+  - [Browser Mechanism](#browser-mechanism)
+  - [Non-Interceptable Execution](#non-interceptable-execution)
+  - [Examples](#examples)
 - [Detailed design discussion](#detailed-design-discussion)
-  - [[Tricky design choice #1]](#tricky-design-choice-1)
-  - [[Tricky design choice 2]](#tricky-design-choice-2)
+  - [Activation Definition](#activation-definition)
+  - [Post-Commit Dispatch](#post-commit-dispatch)
+  - [Endpoint Lifetime](#endpoint-lifetime)
 - [Considered alternatives](#considered-alternatives)
-  - [[Alternative 1]](#alternative-1)
-  - [[Alternative 2]](#alternative-2)
+  - [Client-side JavaScript reporting](#client-side-javascript-reporting)
 - [Security and Privacy Considerations](#security-and-privacy-considerations)
+  - [The "Echo Back" Principle](#the-echo-back-principle)
+  - [Static & Non-Modifiable](#static--non-modifiable)
+  - [Origin Boundaries (Target-Origin Restriction)](#origin-boundaries-target-origin-restriction)
+  - [Credentialless Beacons](#credentialless-beacons)
 - [Stakeholder Feedback / Opposition](#stakeholder-feedback--opposition)
-- [References & acknowledgements](#references--acknowledgements)
-
-<!-- END doctoc generated TOC please keep comment here to allow auto update -->
 
 ## Introduction
 
-[The "executive summary" or "abstract".
-Explain in a few sentences what the goals of the project are,
-and a brief overview of how the solution works.
-This should be no more than 1-2 paragraphs.]
+This proposal introduces the `on-prefetch-activation` HTTP response header, which allows a server to specify a telemetry endpoint for prefetched resources. This provides web developers with a reliable signal to accurately measure the precision and performance impact of their prefetch strategies. Because the activation beacon is dispatched directly by the browser's navigation stack when a prefetch is consumed, it is significantly more accurate than client-side scripts, which are susceptible to cache filtering, duplicate events, and aborted navigation.
 
 ## Goals
 
-[What is the **end-user need** which this project aims to address? Make this section short, and
-elaborate in the Use cases section.]
+- **Reliable Activation Reporting**: Provide a robust, browser-level channel for servers to confirm exactly when a prefetched resource is presented to a user.
+- **Declarative Integration**: Enable servers to specify telemetry reporting endpoints directly within the HTTP response headers of speculative loads, simplifying the implementation for developers.
+- **Privacy-First Design**: Ensure that the telemetry mechanism does not leak additional client-side information or create new vectors for user fingerprinting.
 
 ## Non-goals
 
-[If there are "adjacent" goals which may appear to be in scope but aren't,
-enumerate them here. This section may be fleshed out as your design progresses and you encounter necessary technical and other trade-offs.]
-
-## User research
-
-[If any user research has been conducted to inform your design choices,
-discuss the process and findings. User research should be more common than it is.]
+- **Legacy API Support**: This API will not trigger for `<link rel=prefetch>` or `<link rel=prerender>`, as these are being deprecated in favor of the Speculation Rules API.
+- **Subresource Measurement**: This is not intended for subresource prefetches (e.g., images, scripts). "Prewarm" mechanisms or other specialized APIs are the preferred path for measuring subresource usage.
+- **Dynamic Data Channel**: This is not a general-purpose channel for sending arbitrary client-side states. It is strictly limited to reporting the server-defined activation event.
 
 ## Use cases
 
-[Describe in detail what problems end-users are facing, which this project is trying to solve. A
-common mistake in this section is to take a web developer's or server operator's perspective, which
-makes reviewers worry that the proposal will violate [RFC 8890, The Internet is for End
-Users](https://www.rfc-editor.org/rfc/rfc8890).]
+Measuring prefetch activation is essential for web developers to:
+- Evaluate the precision of their prefetch rules and optimize them for better performance and resource efficiency.
+- Accurately measure the actual visits to prefetched pages to understand user behavior and feature impact.
 
-### Use case 1
+## Proposed Solution
 
-### Use case 2
+The core of this proposal is the `on-prefetch-activation` HTTP response header.
 
-<!-- In your initial explainer, you shouldn't be attached or appear attached to any of the potential
-solutions you describe below this. -->
+### Header Syntax
 
-## [Potential Solution]
+When responding to a prefetch request, a server can include the following header:
 
-[For each related element of the proposed solution - be it an additional JS method, a new object, a new element, a new concept etc., create a section which briefly describes it.]
-
-```js
-// Provide example code - not IDL - demonstrating the design of the feature.
-
-// If this API can be used on its own to address a user need,
-// link it back to one of the scenarios in the goals section.
-
-// If you need to show how to get the feature set up
-// (initialized, or using permissions, etc.), include that too.
+```http
+on-prefetch-activation: <url>
 ```
 
-[Where necessary, provide links to longer explanations of the relevant pre-existing concepts and API.
-If there is no suitable external documentation, you might like to provide supplementary information as an appendix in this document, and provide an internal link where appropriate.]
+The `<url>` value is the relative URL of the telemetry endpoint that the browser should notify upon activation. The reported URL is always the same-origin as the prefetched page.
 
-[If this is already specced, link to the relevant section of the spec.]
+### Browser Mechanism
 
-[If spec work is in progress, link to the PR or draft of the spec.]
+The browser process consumes this header from the prefetch response and associates the provided URL with the prefetched document in its internal cache.
 
-[If you have more potential solutions in mind, add ## Potential Solution 2, 3, etc. sections.]
+The activation beacon is triggered when the navigation utilizing the cached content is successfully committed in a non-prerender context. At this point, the browser sends a credentialless HTTP `HEAD` request to the specified endpoint.
 
-### How this solution would solve the use cases
+### Examples
 
-[If there are a suite of interacting APIs, show how they work together to solve the use cases described.]
+#### Same-Origin Prefetch and Activation
+The user navigates to `a.com/` and the loaded page prefetches `a.com/target`. The beacon will be sent when the user navigates to `a.com/target` afterwards.
 
-#### Use case 1
+#### Cross-Origin Prefetch and Activation
+The user navigates to `a.com/` and the loaded page prefetches `b.com/target`. The beacon will be sent when the user navigates to `b.com/target` afterwards.
 
-[Description of the end-user scenario]
-
-```js
-// Sample code demonstrating how to use these APIs to address that scenario.
-```
-
-#### Use case 2
-
-[etc.]
+#### Devalidation on Navigating Away
+The user navigates to `a.com/` and the loaded page prefetches `a.com/target`. Then the user navigates to `c.com`. The beacon will not be sent when the user navigates to `a.com/target` afterwards.
 
 ## Detailed design discussion
 
-### [Tricky design choice #1]
+### Activation Definition
 
-[Talk through the tradeoffs in coming to the specific design point you want to make.]
+Activation is defined as the point at which a document loaded via a speculative trigger transitions to the active state in its browsing context. This typically occurs when a user initiates a navigation that the browser satisfies using a previously prefetched response.
 
-```js
-// Illustrated with example code.
-```
+### Post-Commit Dispatch
 
-[This may be an open question,
-in which case you should link to any active discussion threads.]
+To ensure that the beacon accurately reflects a page being shown to the user, the browser dispatches the beacon after the navigation has been committed.
 
-### [Tricky design choice 2]
+### Endpoint Lifetime
 
-[etc.]
+To maintain privacy and prevent "zombie" beacons from unrelated navigations, the following lifetime rules apply:
+- **One-Time Use**: The activation trigger is valid for a single activation event. Once the beacon is fired, the trigger is devalidated for the page.
+- **Referrer-Bound**: The activation trigger is tied to the speculative context of the triggering (referrer) document. If the user navigates away from the referrer page to an unrelated destination, the speculative load's activation metadata is discarded.
+- **No General Cache Persistence**: The beacon does not fire for general navigations that happen to hit the disk cache long after the original speculative context has expired. It only fires when the browser's speculative loading logic explicitly consumes the response to satisfy a predicted navigation.
 
 ## Considered alternatives
 
-[This should include as many alternatives as you can,
-from high level architectural decisions down to alternative naming choices.]
+### Client-side JavaScript reporting
 
-### [Alternative 1]
+One alternative is to continue relying on client-side JavaScript to report activation. For example, a site might inject a small script into a prefetched page that fires a `sendBeacon` request when the page becomes visible.
 
-[Describe an alternative which was considered,
-and why you decided against it.]
-
-### [Alternative 2]
-
-[etc.]
+However, this approach was rejected due to several fundamental reliability issues:
+- **Cache Ambiguity**: Telemetry often filters back/forward navigations to avoid double-counting. However, back/forward navigation to prefetched pages will be missed.
+- **Duplicate Reporting**: Cache restores can re-run scripts, leading to duplicate activation signals and inaccurate attribution.
+- **Race Conditions**: Scripts often fail to execute early enough to capture rapid page transitions.
 
 ## Security and Privacy Considerations
 
-[Describe any interesting answers you give to the [Security and Privacy Self-Review
-Questionnaire](https://www.w3.org/TR/security-privacy-questionnaire/) and any interesting ways that
-your feature interacts with [Chromium's Web Platform Security
-Guidelines](https://chromium.googlesource.com/chromium/src/+/master/docs/security/web-platform-security-guidelines.md).]
+### The "Echo Back" Principle
+The API is designed to avoid creating new tracking vectors. The browser conveys no new client-side information to the server; it simply "echoes back" the URL and parameters that the server itself provided in the initial response. This confirms the activation event without exposing dynamic client state.
+
+### Static & Non-Modifiable
+Because the activation URL is defined in the HTTP header, it is inaccessible to and cannot be modified by third-party JavaScript. This prevents malicious scripts from injecting tracking identifiers into the beacon URL.
+
+### Origin Boundaries (Target-Origin Restriction)
+To prevent the API from being used for cross-site tracking, the reporting endpoint must be same-origin with the prefetched page.
+- If the browser initiatively prefetches `target.com`, the beacon can only be sent to an endpoint on `target.com`.
+- If `referer.com` prefetches `target.com`, the beacon can only be sent to an endpoint on `target.com`.
+- Reporting to the referrer `referer.com` or any third party `other.com` is prohibited.
+
+This ensures that only the site being prefetched—which already knows the user is visiting—receives the signal.
+
+### Credentialless Beacons
+Activation beacons are sent without cookies, authentication headers, or other stored credentials. This ensures the beacon cannot be used to join user sessions across different security contexts.
 
 ## Stakeholder Feedback / Opposition
-
-[Implementors and other stakeholders may already have publicly stated positions on this work. If you can, list them here with links to evidence as appropriate.]
-
-- [Implementor A] : Positive
-- [Stakeholder B] : No signals
-- [Implementor C] : Negative
-
-[If appropriate, explain the reasons given by other implementors for their concerns.]
-
-## References & acknowledgements
-
-[Your design will change and be informed by many people; acknowledge them in an ongoing way! It helps build community and, as we only get by through the contributions of many, is only fair.]
-
-[Unless you have a specific reason not to, these should be in alphabetical order.]
-
-Many thanks for valuable feedback and advice from:
-
-- [Person 1]
-- [Person 2]
-- [etc.]
