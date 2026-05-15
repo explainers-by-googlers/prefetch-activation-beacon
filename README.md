@@ -63,10 +63,10 @@ The core of this proposal is the `on-prefetch-activation` HTTP response header.
 When responding to a prefetch request, a server can include the following header:
 
 ```http
-on-prefetch-activation: <url>
+on-prefetch-activation: <relative-endpoint-path>
 ```
 
-The `<url>` value is the relative URL of the telemetry endpoint that the browser should notify upon activation. The reported URL is always the same-origin as the prefetched page.
+The `<relative-endpoint-path>` value is the relative URL of the telemetry endpoint that the browser should notify upon activation. The reported URL is always the same-origin as the prefetched page.
 
 ### Browser Mechanism
 
