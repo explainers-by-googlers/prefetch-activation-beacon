@@ -132,4 +132,6 @@ This ensures that only the site being prefetched—which already knows the user 
 ### Credentialless Beacons
 Activation beacons are sent without cookies, authentication headers, or other stored credentials. This ensures the beacon cannot be used to join user sessions across different security contexts.
 
+For a more detailed analysis, see the [Security and Privacy Questionnaire](security_and_privacy_questionnaire.md).
+
 ## Stakeholder Feedback / Opposition
