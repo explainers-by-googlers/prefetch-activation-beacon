@@ -129,6 +129,20 @@ To prevent the API from being used for cross-site tracking, the reporting endpoi
 
 This ensures that only the site being prefetched—which already knows the user is visiting—receives the signal.
 
+#### Redirect Behavior
+
+Security boundaries are strictly enforced during redirects in both the speculative navigation phase and the activation beacon request itself:
+
+1. **Speculative Navigation Redirects**:
+   - If the speculative request (prefetch or prerender) is redirected, only the `on-prefetch-activation` header specified in the **final response** is processed.
+   - Any `on-prefetch-activation` headers encountered in intermediate redirect responses are **ignored and dropped**.
+   - The same-origin validation for the activation beacon endpoint is checked against the **final response's URL**, not the initial request URL.
+
+2. **Activation Beacon Request Redirects**:
+   - The activation beacon request (sent as an HTTP `HEAD` request) **must only redirect to same-origin URLs** (same-origin with the original beacon URL).
+   - If the beacon request is redirected to a cross-origin URL, the browser will **immediately block and discard the request**.
+   - The HTTP method of the beacon request must remain `HEAD` during redirection. If a redirect attempts to change the request method (e.g., a `302` redirect that changes `HEAD` to `GET`), the request is blocked.
+
 ### Credentialless Beacons
 Activation beacons are sent without cookies, authentication headers, or other stored credentials. This ensures the beacon cannot be used to join user sessions across different security contexts.
 

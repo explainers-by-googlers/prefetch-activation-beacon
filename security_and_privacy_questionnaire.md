@@ -56,6 +56,10 @@ None. The API itself does not create identifiers. The server can include an iden
 
 The reporting endpoint must be **same-origin** with the prefetched page. It is possible for site A to prefetch a page from site B and report the activation to site B. However the prefetch activation beacon will never be sent to a different-origin site with the prefetched page.
 
+If redirects occur:
+- **Speculative Request Redirects**: Only the `on-prefetch-activation` header in the final response of the speculative navigation is honored. Any headers on intermediate redirects are discarded. The endpoint's same-origin status is validated against the final response URL.
+- **Beacon Request Redirects**: If the activation beacon itself is redirected cross-origin, the request is blocked by the browser. It is only allowed to redirect to same-origin endpoints.
+
 ## 15 How do the features in this specification work in the context of a browser’s Private Browsing or Incognito mode?
 
 Activation beacons are sent without credentials (cookies, etc.). In private browsing mode, these requests would continue to be credentialless and would not share state with normal browsing sessions.
@@ -79,6 +83,8 @@ The activation trigger is valid for a single event and tied to the speculative c
 ## 20 Does your spec define when and how new kinds of errors should be raised?
 
 The spec focuses on the happy path of activation. If any error happens during the prefetch or the activation, the beacon will not be sent.
+
+Additionally, the browser silently discards the beacon request if the beacon's own HTTP HEAD request is redirected to a cross-origin URL or if the redirect changes the HTTP method from HEAD. These events do not raise web-visible errors but will cause the activation telemetry to be lost.
 
 ## 21 Does your feature allow sites to learn about the user’s use of assistive technology?
 
