@@ -2,7 +2,7 @@
 
 ## 1 What information does this feature expose, and for what purposes?
 
-This feature exposes the fact that a specific prefetched main resource has been "activated" (consumed by a user navigation) to the server that served the resource. The purpose is to allow web developers to accurately measure the precision and performance impact of their prefetch strategies, overcoming the unreliability of client-side JavaScript reporting (due to cache restore, crashes etc.).
+This feature exposes the fact that a specific prefetched main resource has been "activated" (consumed by a user navigation) to the server that served the resource. The purpose is to allow web developers to accurately measure the precision and performance impact of their prefetch strategies, overcoming the unreliability of client-side JavaScript reporting (due to extension filter, cache restore, crashes etc.).
 
 ## 2 Do features in your specification expose the minimum amount of information necessary to implement the intended functionality?
 
@@ -38,7 +38,7 @@ No.
 
 ## 10 Do features in this specification enable new script execution/loading mechanisms?
 
-No. The beacon is non-interceptable and handled by the browser's navigation stack; it does not execute scripts.
+No. The beacon is handled directly by the browser's navigation stack and does not execute scripts. It is designed to be non-interceptable and cannot be blocked or modified by client-side JavaScript.
 
 ## 11 Do features in this specification allow an origin to access other devices?
 
@@ -74,7 +74,7 @@ No.
 
 ## 18 What happens when a document that uses your feature is kept alive in BFCache (instead of getting destroyed) after navigation, and potentially gets reused on future navigations back to the document?
 
-The trigger is tied to the speculative load context. The beacon does not fire for general navigations that happen to hit the disk cache long after the original speculative context has expired. It only fires when the browser's speculative loading logic explicitly consumes the response to satisfy a predicted navigation. The back/forward navigation and refreshes are filtered from reporting avoid duplicate signals unless it matches an active prefetched page, which means the page gets prefetched again.
+The trigger is tied to the speculative load context. The beacon does not fire for general navigations that happen to hit the disk cache long after the original speculative context has expired. It only fires when the browser's speculative loading logic explicitly consumes the response to satisfy a predicted navigation. The back/forward navigation and refreshes are filtered from reporting to avoid duplicate signals, unless the page is prefetched again in a new speculative context.
 
 ## 19 What happens when a document that uses your feature gets disconnected?
 

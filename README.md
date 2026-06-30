@@ -74,6 +74,12 @@ The browser process consumes this header from the prefetch response and associat
 
 The activation beacon is triggered when the navigation utilizing the cached content is successfully committed in a non-prerender context. At this point, the browser sends a credentialless HTTP `HEAD` request to the specified endpoint.
 
+### Non-Interceptable Execution
+
+Because the activation beacon is handled directly by the browser's navigation stack, it does not pass through the origin's Service Worker, is not interceptable by client-side JavaScript, and cannot be blocked or modified by browser extensions. This ensures:
+- **High Reliability**: The signal cannot be blocked, delayed, or tampered with by faulty or malicious scripts, nor by browser extensions.
+- **Zero Script Execution**: The dispatch of the beacon does not boot up a Service Worker or run any page scripts, keeping the activation path as fast and lightweight as possible.
+
 ### Examples
 
 #### Same-Origin Prefetch and Activation
