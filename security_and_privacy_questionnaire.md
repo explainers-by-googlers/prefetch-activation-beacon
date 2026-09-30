@@ -6,11 +6,11 @@ This feature exposes the fact that a specific prefetched main resource has been 
 
 ## 2 Do features in your specification expose the minimum amount of information necessary to implement the intended functionality?
 
-Yes. The beacon simply sends a HTTP HEAD request to a URL specified by the server in the response header of the prefetch request. It does not send any new client-side state; it only "echoes back" the URL and parameters the server provided.
+Yes. The beacon simply sends an HTTP HEAD request to a URL specified by the server in the response header of the prefetch request, carrying a frozen snapshot of the exact same-origin cookies sent with the initial prefetch request. It does not send any new client-side state or interim cookie changes; it only "echoes back" the URL, parameters, and prefetch cookie state that the server already received.
 
 ## 3 Do the features in your specification expose personal information, personally-identifiable information (PII), or information derived from either?
 
-No. The API does not collect or expose personal information. The URL parameters are defined by the server. While the server might use an ID (like an event ID) that it correlates with a user session, the API itself does not generate or expose new identifying data.
+No. The API does not collect or expose new personal information. The URL parameters are defined by the server, and any cookies included in the beacon are a frozen snapshot of the exact same-origin cookies already sent to the server during the initial prefetch request (if the prefetch was credentialed; uncredentialed cross-site prefetches have an empty cookie snapshot). The API itself does not generate or expose new identifying data beyond what the server already received during the prefetch.
 
 ## 4 How do the features in your specification deal with sensitive information?
 
@@ -18,11 +18,11 @@ The API does not deal with sensitive information. It only reports the activation
 
 ## 5 Does data exposed by your specification carry related but distinct information that may not be obvious to users?
 
-No. The beacon is a simple HEAD request to a server-defined URL.
+No. The beacon is a simple HEAD request to a server-defined URL carrying the frozen cookie snapshot from the initial prefetch request.
 
 ## 6 Do the features in your specification introduce state that persists across browsing sessions?
 
-No. The activation metadata is associated with the browser's speculative loading context and is discarded when that context expires or the user navigates away. It does not introduce persistent state.
+No. The activation metadata (including the frozen cookie snapshot) is associated with the browser's speculative loading context and is discarded when that context expires, when the user navigates away, or when the user clears cookies or site data. It does not introduce persistent state.
 
 ## 7 Do the features in your specification expose information about the underlying platform to origins?
 
@@ -56,13 +56,17 @@ None. The API itself does not create identifiers. The server can include an iden
 
 The reporting endpoint must be **same-origin** with the prefetched page. It is possible for site A to prefetch a page from site B and report the activation to site B. However the prefetch activation beacon will never be sent to a different-origin site with the prefetched page.
 
+Regarding credentials, the activation beacon sends a frozen snapshot of the same-origin cookies from the initial prefetch request:
+- **Credentialed (e.g., Same-Origin) Prefetches**: The beacon includes the frozen snapshot of same-origin cookies sent with the initial prefetch request, ignoring any cookie mutations that occurred between prefetch and activation.
+- **Uncredentialed Cross-Site Prefetches**: When a cross-site prefetch is dispatched without ambient credentials (in an isolated network context), the initial prefetch carries no existing cookies. Because the beacon uses this frozen snapshot rather than querying the live cookie store, the cookie snapshot is empty and the beacon never retroactively attaches ambient cookies.
+
 If redirects occur:
 - **Speculative Request Redirects**: Only the `on-prefetch-activation` header in the final response of the speculative navigation is honored. Any headers on intermediate redirects are discarded. The endpoint's same-origin status is validated against the final response URL.
 - **Beacon Request Redirects**: If the activation beacon itself is redirected cross-origin, the request is blocked by the browser. It is only allowed to redirect to same-origin endpoints.
 
 ## 15 How do the features in this specification work in the context of a browser’s Private Browsing or Incognito mode?
 
-Activation beacons are sent without credentials (cookies, etc.). In private browsing mode, these requests would continue to be credentialless and would not share state with normal browsing sessions.
+Activation beacons only include a frozen snapshot of the same-origin cookies sent with the initial prefetch request within that same browsing context. In Private Browsing or Incognito mode, the beacon is bound to the ephemeral cookie store of that private session and never shares state or credentials with normal browsing sessions. If the private session ends or cookies/site data are cleared before activation, the prefetched response and its cookie snapshot are invalidated and discarded.
 
 ## 16 Does this specification have both "Security Considerations" and "Privacy Considerations" sections?
 

@@ -29,7 +29,7 @@
   - [The "Echo Back" Principle](#the-echo-back-principle)
   - [Static & Non-Modifiable](#static--non-modifiable)
   - [Origin Boundaries (Target-Origin Restriction)](#origin-boundaries-target-origin-restriction)
-  - [Credentialless Beacons](#credentialless-beacons)
+  - [Same-Origin Cookie Snapshot](#same-origin-cookie-snapshot)
 - [Stakeholder Feedback / Opposition](#stakeholder-feedback--opposition)
 
 ## Introduction
@@ -70,9 +70,9 @@ The `<relative-endpoint-path>` value is the relative URL of the telemetry endpoi
 
 ### Browser Mechanism
 
-The browser process consumes this header from the prefetch response and associates the provided URL with the prefetched document in its internal cache.
+The browser process consumes this header from the prefetch response and associates the provided URL—along with a frozen snapshot of the same-origin cookies sent with the initial prefetch request—with the prefetched document in its internal cache.
 
-The activation beacon is triggered when the navigation utilizing the cached content is successfully committed in a non-prerender context. At this point, the browser sends a credentialless HTTP `HEAD` request to the specified endpoint.
+The activation beacon is triggered when the navigation utilizing the cached content is successfully committed in a non-prerender context. At this point, the browser sends an HTTP `HEAD` request to the specified endpoint carrying the frozen snapshot of same-origin cookies from the initial prefetch request.
 
 ### Non-Interceptable Execution
 
@@ -122,7 +122,7 @@ However, this approach was rejected due to several fundamental reliability issue
 ## Security and Privacy Considerations
 
 ### The "Echo Back" Principle
-The API is designed to avoid creating new tracking vectors. The browser conveys no new client-side information to the server; it simply "echoes back" the URL and parameters that the server itself provided in the initial response. This confirms the activation event without exposing dynamic client state.
+The API is designed to avoid creating new tracking vectors. The browser conveys no new client-side information to the server; it simply "echoes back" the URL and parameters that the server itself provided in the initial response, along with a frozen snapshot of the exact same-origin cookies that the server already received during the initial prefetch request. This confirms the activation event without exposing dynamic client state or interim state changes.
 
 ### Static & Non-Modifiable
 Because the activation URL is defined in the HTTP header, it is inaccessible to and cannot be modified by third-party JavaScript. This prevents malicious scripts from injecting tracking identifiers into the beacon URL.
@@ -149,8 +149,22 @@ Security boundaries are strictly enforced during redirects in both the speculati
    - If the beacon request is redirected to a cross-origin URL, the browser will **immediately block and discard the request**.
    - The HTTP method of the beacon request must remain `HEAD` during redirection. If a redirect attempts to change the request method (e.g., a `302` redirect that changes `HEAD` to `GET`), the request is blocked.
 
-### Credentialless Beacons
-Activation beacons are sent without cookies, authentication headers, or other stored credentials. This ensures the beacon cannot be used to join user sessions across different security contexts.
+### Same-Origin Cookie Snapshot
+Rather than sending a credentialless request or reading the browser's live cookie jar at the moment of activation, the activation beacon sends a **frozen snapshot of the exact same-origin cookies from the initial prefetch request**:
+
+```
+t0 (Prefetch):    Browser sends Prefetch with Cookie Snapshot C0 ──> Server receives C0
+t1 (Interim):     Concurrent activity mutates live cookie jar to C1 (Ignored by beacon)
+t2 (Activation):  Page activates; Browser sends Beacon with C0   ──> Server receives C0 (Zero new info)
+```
+
+This snapshot architecture enforces strict privacy invariants while supporting stateless server-side telemetry:
+- **Zero New Tracking Information**: Because the origin server already received cookie snapshot `C0` when serving the initial prefetch request at `t0`, re-transmitting that identical snapshot in the activation beacon at `t2` reveals no new user-identifying data to the server. The server learns only that the previously prefetched response was committed to the active browsing context.
+- **No Temporal State Joining**: Any cookie additions, modifications, or cross-tab state transitions that occur in the browser's live cookie jar between prefetch (`t0`) and activation (`t2`) are excluded from the beacon. The beacon cannot be used to bridge pre-prefetch tokens with post-prefetch identity changes.
+- **Preserving Cross-Site Isolation and Cookie Deletion Controls**:
+  - *Uncredentialed Cross-Site Prefetches*: When a cross-site prefetch is dispatched without ambient credentials (in an isolated network context), the initial prefetch carries no existing cookies (`C0` is empty). Because the beacon uses this snapshot rather than querying the live cookie store, it never retroactively attaches ambient cookies at the beacon layer.
+  - *Respecting User Cookie Clearing*: If a user clears their cookies or site data between the prefetch and activation, the prefetched response and its cookie snapshot are invalidated and discarded.
+- **Avoiding the "Pseudo-Credentialless" Anti-Pattern**: Because the server dynamically specifies the beacon URL and query parameters per prefetch response, a server that received cookies during the prefetch already has the capability to encode a 1:1 session or transaction identifier in the URL. Stripping cookies would only force servers needing session attribution to maintain custom side-channel joining tables outside of standardized browser cookie controls, whereas sending the frozen cookie snapshot allows stateless HTTP frontends and telemetry endpoints to process activation beacons using standard cookie middleware.
 
 For a more detailed analysis, see the [Security and Privacy Questionnaire](security_and_privacy_questionnaire.md).
 
