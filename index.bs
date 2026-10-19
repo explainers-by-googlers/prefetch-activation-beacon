@@ -1,17 +1,17 @@
 <pre class='metadata'>
-Title: The TODO API
-Shortname: todo
+Title: Prefetch Activation Beacon API
+Shortname: prefetch-activation-beacon
 Level: None
 Status: w3c/UD
-Repository: explainers-by-googlers/todo-your-repo-name
-URL: https://explainers-by-googlers.github.io/todo-your-repo-name
-Editor: TODO: Your Name, Google https://google.com, TODO@google.com
-Abstract: TODO: A short description of your spec, one or two sentences.
+Repository: explainers-by-googlers/prefetch-activation-beacon
+URL: https://explainers-by-googlers.github.io/prefetch-activation-beacon
+Editor: Jiacheng Guo, Google https://google.com, gjc@google.com
+Abstract: This specification defines the on-prefetch-activation HTTP response header, which allows an origin server to specify a same-origin endpoint to be notified via a browser-dispatched HTTP HEAD request when a speculatively prefetched resource is activated by a user navigation.
 Markup Shorthands: markdown yes, css no
 Complain About: accidental-2119 yes, missing-example-ids yes
 Assume Explicit For: yes
 Die On: warning
-WPT Path Prefix: TODO-API-LABEL
+WPT Path Prefix: speculation-rules/prefetch
 WPT Display: closed
 Include MDN Panels: if possible
 Include Can I Use Panels: yes
