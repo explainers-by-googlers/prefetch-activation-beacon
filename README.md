@@ -40,7 +40,7 @@ This proposal introduces the `on-prefetch-activation` HTTP response header, whic
 
 ### Restoring the HTTP Transaction Loop (3-Phase Commit)
 
-For decades, web traffic measurement has rested on a simple HTTP invariant: **if a user visits an uncached URL, the origin server receives and serves an incoming HTTP `GET` request for the main document.** As browsers expand speculative loading capabilities (such as the [Speculation Rules API](https://wicg.github.io/nav-speculation/speculation-rules.html), omnibox prefetching, and on-press prefetching), they unbundle **fetching content** from **presenting content**:
+For decades, web traffic measurement has rested on a simple HTTP invariant: **if a user visits an uncached URL, the origin server receives and serves an incoming HTTP `GET` request for the main document.** As browsers expand speculative loading capabilities (such as the [Speculation Rules API](https://wicg.github.io/nav-speculation/speculation-rules.html), browser UI predictions, and on-press prefetching), they unbundle **fetching content** from **presenting content**:
 - **Speculative Fetch**: The browser requests the main document (`Sec-Purpose: prefetch`) in anticipation of a navigation.
 - **Speculative Discard**: If the user does not navigate to the predicted URL, the prefetched document is silently discarded from the browser's prefetch cache.
 - **Activation / Commit**: If the user proceeds with the predicted navigation, the browser satisfies the navigation directly from the local prefetch cache.
@@ -60,7 +60,7 @@ JS Telemetry ──> sendBeacon(/log) ─────────────> B
 
 Speculative Navigation (With Activation Beacon):
 Speculation ───> HTTP GET /page ───────────────> Server returns "on-prefetch-activation: /ack?id=123"
-User Action ───> Committed to Frame Stack     ──> Browser fires HTTP HEAD /ack?id=123 (ACK)
+User Action ───> Committed to Frame Stack     ──> Browser fires HTTP GET /ack?id=123 (ACK)
 ```
 
 ## Goals
@@ -81,9 +81,9 @@ Unlike general-purpose client-side analytics or ad-impression trackers—which m
 
 Accurately confirming prefetch activation is essential for web services across several operational and technical dimensions:
 - **Infrastructure ROI & Capacity Planning**: Speculative preloading consumes significant server, database, and CDN resources. Engineering teams must measure the hit rate (precision) of their prefetch rules against the cost of discarded requests to justify and sustain investments in speculative loading.
-- **Traffic Accounting & Business Operations**: Real user visits drive foundational operational metrics, including search query accounting, content engagement, and partner attribution. When prefetching masks whether a page was visited—or when client-side activation pings are dropped—operators observe artificial drops in reported traffic (such as an observed ~10% loss in search query accounting during on-press prefetch rollouts).
+- **Traffic Accounting & User Engagement**: Real user visits drive foundational operational metrics, including page-view accounting, user engagement, and partner attribution. When prefetching obscures whether a page was visited—or when client-side activation pings are dropped—operators observe artificial drops in reported user engagement.
 - **Optimizing Speculation Heuristics**: The Speculation Rules API provides fine-grained controls (such as `eagerness` levels and hover/viewport triggers). Developers need reliable ground-truth activation rates to tune whether their speculation rules are too aggressive or too conservative.
-- **Search Relevance & User Intent Satisfaction**: Search engines and content platforms rely on accurate visit confirmations to evaluate result quality and query satisfaction.
+- **Content Relevance & User Intent Satisfaction**: Content platforms rely on accurate visit confirmations to evaluate recommendation quality and user intent satisfaction.
 - **Security, Fraud Detection, and Rate Limiting**: Distinguishing between actual human page views and discarded speculative requests is necessary for accurate rate limiting, bot detection, and anomaly-detection systems.
 
 ## Proposed Solution
@@ -102,9 +102,9 @@ The `<relative-endpoint-path>` value is the relative URL (path and optional quer
 
 ### Browser Mechanism
 
-The browser process consumes this header from the prefetch response and associates the provided relative URL—along with a post-modifier frozen snapshot (`C0`) of the same-origin cookies sent with the initial prefetch request—with the prefetched document in its internal cache.
+The browser process consumes this header from the prefetch response and associates the provided relative URL—along with a post-modifier frozen snapshot of the same-origin cookies sent with the initial prefetch request—with the prefetched document in its internal cache.
 
-The activation beacon is triggered when the navigation utilizing the cached content is successfully committed in a non-prerender context. At this point, the browser sends an HTTP `HEAD` request to the specified endpoint carrying the frozen snapshot of same-origin cookies from the initial prefetch request.
+The activation beacon is triggered when the navigation utilizing the cached content is successfully committed in a non-prerender context. At this point, the browser sends an HTTP `GET` request to the specified endpoint carrying the frozen snapshot of same-origin cookies from the initial prefetch request.
 
 ### Non-Interceptable Execution
 
@@ -153,13 +153,13 @@ However, this approach was rejected due to several fundamental reliability issue
 - **Cache Ambiguity and Duplicate Reporting**: Telemetry often filters back/forward navigations to avoid double-counting, which causes back/forward navigations to prefetched pages to be missed. Conversely, back/forward cache (BFCache) restores and standard HTTP disk cache hits (particularly with features like `No-Vary-Search`) can re-run scripts, leading to duplicate activation signals and corrupted attribution.
 - **Lifecycle Race Conditions and Aborted Navigations**: If a user quickly navigates away, closes the tab, or the renderer process terminates unexpectedly, client scripts may fail to execute early enough or complete their outbound network requests.
 - **Restricted or Delayed Scripting Environments**: In environments where JavaScript is disabled, constrained, or delayed by heavy main-thread execution, the activation signal is lost entirely despite the document being displayed to the user.
-- **Blanket Extension Interception of JS Logging Endpoints**: Common content-filtering extensions maintain broad filter rules targeting consolidated client-side logging endpoints (such as `/gen_204`, `/telemetry`, or `/log`). When activation confirmation is piggybacked onto client-side scripts, these rules block the activation signal wholesale—for example, filtering out approximately 10% of activation beacons in Google Search's on-press prefetch even when the user actively viewed the main document.
+- **Blanket Extension Interception of JS Logging Endpoints**: Common content-filtering extensions maintain broad filter rules targeting consolidated client-side logging endpoints (such as `/telemetry` or `/log`). When activation confirmation is piggybacked onto client-side scripts, these rules block the activation signal wholesale—dropping a significant portion of real user engagement signals even when the user actively viewed the main document.
 
 ### Commit verb to the same prefetch URL
 
 Another alternative is to avoid specifying an endpoint in a response header and instead have the browser send a dedicated HTTP method (such as a `GET-COMMIT` verb) or request header back to the exact same URL that was prefetched when the navigation commits.
 
-While conceptually similar, in practice the component initiating a prefetch (such as browser omnibox prediction, on-press speculation, or a referring page's speculation rules) often lacks the full server session state required to mint a unique transaction or event ID in the initial request URL. Allowing the server to specify a relative endpoint in the `on-prefetch-activation` response header (e.g., `on-prefetch-activation: /ack?id=123`) enables the server to generate the correlation token at the time it serves the prefetch response.
+While conceptually similar, in practice the component initiating a prefetch (such as browser UI prediction, on-press speculation, or a referring page's speculation rules) often lacks the full server session state required to mint a unique transaction or event ID in the initial request URL. Allowing the server to specify a relative endpoint in the `on-prefetch-activation` response header (e.g., `on-prefetch-activation: /ack?id=123`) enables the server to generate the correlation token at the time it serves the prefetch response.
 
 ### Extension interception and dedicated resource types
 
@@ -195,26 +195,26 @@ Security boundaries are strictly enforced during redirects in both the speculati
    - The same-origin validation for the activation beacon endpoint is checked against the **final response's URL**, not the initial request URL.
 
 2. **Activation Beacon Request Redirects**:
-   - The activation beacon request (sent as an HTTP `HEAD` request) **must only redirect to same-origin URLs** (same-origin with the original beacon URL).
+   - The activation beacon request (sent as an HTTP `GET` request) **must only redirect to same-origin URLs** (same-origin with the original beacon URL).
    - If the beacon request is redirected to a cross-origin URL, the browser will **immediately block and discard the request**.
-   - The HTTP method of the beacon request must remain `HEAD` during redirection. If a redirect attempts to change the request method (e.g., a `302` redirect that changes `HEAD` to `GET`), the request is blocked.
+   - The HTTP method of the beacon request must remain `GET` during redirection. If a redirect attempts to change the request method, the request is blocked.
 
 ### Same-Origin Cookie Snapshot
 Rather than sending a credentialless request or reading the browser's live cookie jar at the moment of activation, the activation beacon sends a **frozen snapshot of the exact same-origin cookies from the initial prefetch request**:
 
 ```
-t0 (Prefetch):    Browser sends Prefetch with Cookie Snapshot C0 ──> Server receives C0
-t1 (Interim):     Concurrent activity mutates live cookie jar to C1 (Ignored by beacon)
-t2 (Activation):  Page activates; Browser sends Beacon with C0   ──> Server receives C0 (Zero new info)
+1. Prefetch Sent:   Browser freezes outbound Cookie header from the prefetch ──> Server receives prefetch cookies
+2. Interim Window:  Concurrent tab or login mutates live cookie jar          ──> Ignored by prefetch cache
+3. Page Activated:  Browser sends GET beacon with frozen prefetch cookies    ──> Server receives zero new identity state
 ```
 
 This snapshot architecture enforces strict privacy invariants while supporting stateless server-side telemetry:
-- **Zero New Tracking Information**: Because the origin server already received cookie snapshot `C0` when serving the initial prefetch request at `t0`, re-transmitting that identical snapshot in the activation beacon at `t2` reveals no new user-identifying data to the server. The server learns only that the previously prefetched response was committed to the active browsing context.
-- **No Temporal State Joining**: Any cookie additions, modifications, or cross-tab state transitions that occur in the browser's live cookie jar between prefetch (`t0`) and activation (`t2`) are excluded from the beacon. The beacon cannot be used to bridge pre-prefetch tokens with post-prefetch identity changes.
-- **Post-Modifier Snapshot Capture**: The cookie snapshot `C0` is captured from the final outbound `Cookie` header of the initial prefetch request after all browser cookie policies, network hooks, and extension modifications have been applied, ensuring zero skew with the initial prefetch and preventing any bypass of cookie controls.
+- **Zero New Tracking Information**: Because the origin server already received the frozen cookies when serving the initial prefetch request, re-transmitting those identical cookies in the activation beacon reveals no new user-identifying data to the server. The server learns only that the previously prefetched response was committed to the active browsing context.
+- **No Temporal State Joining**: Any cookie additions, modifications, or cross-tab state transitions that occur in the browser's live cookie jar between prefetch and activation are excluded from the beacon. The beacon cannot be used to bridge pre-prefetch tokens with post-prefetch identity changes (such as a user logging in on another tab before activating the prefetched page).
+- **Post-Modifier Snapshot Capture**: The frozen cookies are captured from the final outbound `Cookie` header of the initial prefetch request after all browser cookie policies, network hooks, and extension modifications have been applied, ensuring zero skew with the initial prefetch and preventing any bypass of cookie controls.
 - **Preserving Cross-Site Isolation and Cookie Deletion Controls**:
-  - *Uncredentialed Cross-Site Prefetches*: When a cross-site prefetch is dispatched without ambient credentials (in an isolated network context), the initial prefetch carries no existing cookies (`C0` is empty). Because the beacon uses this snapshot rather than querying the live cookie store, it never retroactively attaches ambient cookies at the beacon layer.
-  - *Respecting User Cookie Clearing*: If a user clears their cookies or site data between the prefetch and activation, the prefetched response and its cookie snapshot are invalidated and discarded.
+  - *Uncredentialed Cross-Site Prefetches*: When a cross-site prefetch is dispatched without ambient credentials (in an isolated network context), the initial prefetch carries no existing cookies (the frozen cookie set is empty). Because the beacon uses this snapshot rather than querying the live cookie store, it never retroactively attaches ambient cookies at the beacon layer.
+  - *Respecting User Cookie Clearing*: If a user clears their cookies or site data between the prefetch and activation, any pending activation beacon and its frozen cookie snapshot are immediately cleared and discarded.
 - **Avoiding the "Pseudo-Credentialless" Anti-Pattern**: Because the server dynamically specifies the beacon URL and query parameters per prefetch response, a server that received cookies during the prefetch already has the capability to encode a 1:1 session or transaction identifier in the URL. Stripping cookies would only force servers needing session attribution to maintain custom side-channel joining tables outside of standardized browser cookie controls, whereas sending the frozen cookie snapshot allows stateless HTTP frontends and telemetry endpoints to process activation beacons using standard cookie middleware.
 
 For a more detailed analysis, see the [Security and Privacy Questionnaire](security_and_privacy_questionnaire.md).

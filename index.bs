@@ -6,7 +6,7 @@ Status: w3c/UD
 Repository: explainers-by-googlers/prefetch-activation-beacon
 URL: https://explainers-by-googlers.github.io/prefetch-activation-beacon
 Editor: Jiacheng Guo, Google https://google.com, gjc@google.com
-Abstract: This specification defines the on-prefetch-activation HTTP response header, which allows an origin server to specify a same-origin endpoint to be notified via a browser-dispatched HTTP HEAD request when a speculatively prefetched resource is activated by a user navigation.
+Abstract: This specification defines the on-prefetch-activation HTTP response header, which allows an origin server to specify a same-origin endpoint to be notified via a browser-dispatched HTTP GET request when a speculatively prefetched resource is activated by a user navigation.
 Markup Shorthands: markdown yes, css no
 Complain About: accidental-2119 yes, missing-example-ids yes
 Assume Explicit For: yes
