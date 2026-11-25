@@ -190,8 +190,7 @@ This ensures that only the site being prefetched—which already knows the user 
 Security boundaries are strictly enforced during redirects in both the speculative navigation phase and the activation beacon request itself:
 
 1. **Speculative Navigation Redirects**:
-   - If the speculative request (prefetch or prerender) is redirected, only the `on-prefetch-activation` header specified in the **final response** is processed.
-   - Any `on-prefetch-activation` headers encountered in intermediate redirect responses are **ignored and dropped**.
+   - If the speculative request (prefetch or prerender) is redirected, only the `on-prefetch-activation` header and outbound request cookies from the **final response** (after any redirects) are retained; headers and request cookies from intermediate redirect hops are **ignored and dropped**.
    - The same-origin validation for the activation beacon endpoint is checked against the **final response's URL**, not the initial request URL.
 
 2. **Activation Beacon Request Redirects**:
@@ -200,7 +199,7 @@ Security boundaries are strictly enforced during redirects in both the speculati
    - The HTTP method of the beacon request must remain `GET` during redirection. If a redirect attempts to change the request method, the request is blocked.
 
 ### Same-Origin Cookie Snapshot
-Rather than sending a credentialless request or reading the browser's live cookie jar at the moment of activation, the activation beacon sends a **frozen snapshot of the exact same-origin cookies from the initial prefetch request**:
+Rather than sending a credentialless request or reading the browser's live cookie jar at the moment of activation, the activation beacon sends a **frozen snapshot of the exact same-origin cookies sent on the speculative request for the final response**:
 
 ```
 1. Prefetch Sent:   Browser freezes outbound Cookie header from the prefetch ──> Server receives prefetch cookies
@@ -209,12 +208,13 @@ Rather than sending a credentialless request or reading the browser's live cooki
 ```
 
 This snapshot architecture enforces strict privacy invariants while supporting stateless server-side telemetry:
-- **Zero New Tracking Information**: Because the origin server already received the frozen cookies when serving the initial prefetch request, re-transmitting those identical cookies in the activation beacon reveals no new user-identifying data to the server. The server learns only that the previously prefetched response was committed to the active browsing context.
+- **Zero New Tracking Information**: Because the origin server already received the frozen cookies when serving the prefetched response, re-transmitting those identical cookies in the activation beacon reveals no new user-identifying data to the server. The server learns only that the previously prefetched response was committed to the active browsing context.
 - **No Temporal State Joining**: Any cookie additions, modifications, or cross-tab state transitions that occur in the browser's live cookie jar between prefetch and activation are excluded from the beacon. The beacon cannot be used to bridge pre-prefetch tokens with post-prefetch identity changes (such as a user logging in on another tab before activating the prefetched page).
-- **Post-Modifier Snapshot Capture**: The frozen cookies are captured from the final outbound `Cookie` header of the initial prefetch request after all browser cookie policies, network hooks, and extension modifications have been applied, ensuring zero skew with the initial prefetch and preventing any bypass of cookie controls.
-- **Preserving Cross-Site Isolation and Cookie Deletion Controls**:
+- **Post-Modifier Snapshot Capture**: The frozen cookies are captured from the final outbound `Cookie` header of the speculative request that fetched the final response (after all browser cookie policies, network hooks, and extension modifications have been applied), ensuring zero skew with the prefetch and preventing any bypass of cookie controls.
+- **Intentional Prefetch-Path Cookie Echoing**: Because the snapshot echoes the raw outbound `Cookie` header (`name=value` pairs) sent to the prefetched page's path rather than querying the live cookie jar against the beacon endpoint's path, cookies scoped to the prefetched path (e.g., `Path=/search`) are intentionally echoed to the same-origin beacon endpoint (e.g., `/ack`), while cookies scoped only to the beacon endpoint's path (`Path=/ack`) are excluded. Per [RFC 6265 §8.5](https://datatracker.ietf.org/doc/html/rfc6265#section-8.5), the `Path` attribute is not a security boundary within an origin, and the origin server already received those exact cookies when serving the prefetched response.
+- **Preserving Cross-Site Isolation and Cookie Controls**:
   - *Uncredentialed Cross-Site Prefetches*: When a cross-site prefetch is dispatched without ambient credentials (in an isolated network context), the initial prefetch carries no existing cookies (the frozen cookie set is empty). Because the beacon uses this snapshot rather than querying the live cookie store, it never retroactively attaches ambient cookies at the beacon layer.
-  - *Respecting User Cookie Clearing*: If a user clears their cookies or site data between the prefetch and activation, any pending activation beacon and its frozen cookie snapshot are immediately cleared and discarded.
+  - *Respecting User Cookie Clearing and Blocking*: If a user clears their cookies or site data between the prefetch and activation, any pending activation beacon and its frozen cookie snapshot are immediately cleared and discarded. Likewise, if cookies are blocked for the origin by user or site cookie settings at activation time, the `Cookie` header is omitted from the beacon.
 - **Avoiding the "Pseudo-Credentialless" Anti-Pattern**: Because the server dynamically specifies the beacon URL and query parameters per prefetch response, a server that received cookies during the prefetch already has the capability to encode a 1:1 session or transaction identifier in the URL. Stripping cookies would only force servers needing session attribution to maintain custom side-channel joining tables outside of standardized browser cookie controls, whereas sending the frozen cookie snapshot allows stateless HTTP frontends and telemetry endpoints to process activation beacons using standard cookie middleware.
 
 For a more detailed analysis, see the [Security and Privacy Questionnaire](security_and_privacy_questionnaire.md).
